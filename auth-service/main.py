@@ -74,6 +74,7 @@ class RegisterRequest(BaseModel):
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
+    role: str
 
 
 # ── Helpers ───────────────────────────────────────────────────
@@ -124,7 +125,7 @@ def login(req: LoginRequest):
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
     token = create_token({"sub": req.username, "role": row[1]})
-    return TokenResponse(access_token=token)
+    return TokenResponse(access_token=token, role=row[1])
 
 
 @app.post("/verify-header")

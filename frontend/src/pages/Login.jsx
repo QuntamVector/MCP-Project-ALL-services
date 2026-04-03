@@ -5,8 +5,8 @@ import { useToast } from '../context/ToastContext'
 import { authAPI } from '../api'
 
 export default function Login() {
-  const [username, setUsername] = useState('admin')
-  const [password, setPassword] = useState('admin123')
+  const [username, setUsername] = useState('')
+  const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const { login } = useAuth()
   const navigate = useNavigate()
@@ -16,20 +16,12 @@ export default function Login() {
     if (!username || !password) return
     setLoading(true)
     try {
-      // Try real API first, fallback to demo mode
-      try {
-        const res = await authAPI.login(username, password)
-        login({ username, role: username === 'admin' ? 'Administrator' : 'User' }, res.data.access_token)
-      } catch {
-        // Demo mode — accept admin/admin123 or user/user123
-        const valid = (username === 'admin' && password === 'admin123') ||
-                      (username === 'user'  && password === 'user123')
-        if (!valid) throw new Error('Invalid credentials')
-        login({ username, role: username === 'admin' ? 'Administrator' : 'User' }, 'demo-token')
-      }
+      const res = await authAPI.login(username, password)
+      login({ username, role: res.data.role || 'user' }, res.data.access_token)
       navigate('/dashboard')
-    } catch {
-      showToast('❌ Invalid credentials')
+    } catch (err) {
+      const msg = err?.response?.data?.detail || 'Invalid credentials'
+      showToast(`❌ ${msg}`)
     } finally {
       setLoading(false)
     }
@@ -75,14 +67,6 @@ export default function Login() {
         >
           {loading ? 'Signing in...' : 'Sign In'}
         </button>
-
-        <div style={{
-          textAlign: 'center', marginTop: 16, fontSize: 12, color: 'var(--muted)',
-          background: 'rgba(79,142,247,.08)', border: '1px solid rgba(79,142,247,.2)',
-          borderRadius: 8, padding: 8,
-        }}>
-          Demo: <strong>admin / admin123</strong> or <strong>user / user123</strong>
-        </div>
 
         <p style={{ textAlign: 'center', marginTop: 20, fontSize: 13, color: 'var(--muted2)' }}>
           Don't have an account?{' '}
