@@ -6,7 +6,7 @@ const INFO = [
   { label: 'Registered Models',  value: '3' },
   { label: 'Namespace',          value: 'mcp-platform' },
   { label: 'Cluster',            value: 'mcp-platform-dev · EKS 1.29' },
-  { label: 'Region',             value: 'us-east-1' },
+  { label: 'Region',             value: 'ap-northeast-1' },
 ]
 
 const METRICS = [
