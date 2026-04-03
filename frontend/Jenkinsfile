@@ -14,7 +14,7 @@ pipeline {
 
         stage('Git Checkout') {
             steps {
-                git url: 'https://github.com/QuntamVector/frontend.git', branch: 'main'
+                git url: 'https://github.com/QuntamVector/MCP-Project-ALL-services.git', branch: 'main'
             }
         }
 
@@ -64,7 +64,7 @@ pipeline {
                             rm -rf gitops
                         fi
 
-                        git clone https://$GIT_USERNAME:$GIT_PASSWORD@github.com/QuntamVector/GitOps.git gitops
+                        git clone https://$GIT_USERNAME:$GIT_PASSWORD@github.com/QuntamVector/MCP-Project-GitOps.git gitops
                         cd gitops/base/${SERVICE_NAME}/
 
                         git config user.email "jenkins@ci.com"
