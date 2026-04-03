@@ -1,5 +1,5 @@
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel
 from datetime import datetime, timedelta
 from jose import JWTError, jwt
 from passlib.context import CryptContext
@@ -32,11 +32,11 @@ def init_db():
     cur = conn.cursor()
     cur.execute("""
         CREATE TABLE IF NOT EXISTS users (
-            id        SERIAL PRIMARY KEY,
-            username  VARCHAR(100) UNIQUE NOT NULL,
-            email     VARCHAR(255) UNIQUE NOT NULL,
-            password  VARCHAR(255) NOT NULL,
-            role      VARCHAR(50)  NOT NULL DEFAULT 'user',
+            id         SERIAL PRIMARY KEY,
+            username   VARCHAR(100) UNIQUE NOT NULL,
+            email      VARCHAR(255) UNIQUE NOT NULL,
+            password   VARCHAR(255) NOT NULL,
+            role       VARCHAR(50)  NOT NULL DEFAULT 'user',
             created_at TIMESTAMP DEFAULT NOW()
         )
     """)
@@ -45,11 +45,27 @@ def init_db():
     if not cur.fetchone():
         cur.execute(
             "INSERT INTO users (username, email, password, role) VALUES (%s, %s, %s, %s)",
-            ("admin", "admin@mcp-platform.com", pwd_ctx.hash("admin123"), "admin")
+            ("admin", "admin@mcp-platform.com", hash_password("admin123"), "admin")
         )
     conn.commit()
     cur.close()
     conn.close()
+
+
+# ── Helpers ───────────────────────────────────────────────────
+def hash_password(password: str) -> str:
+    return pwd_ctx.hash(password[:72])
+
+
+def verify_password(plain: str, hashed: str) -> bool:
+    return pwd_ctx.verify(plain[:72], hashed)
+
+
+def create_token(data: dict) -> str:
+    to_encode = data.copy()
+    expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    to_encode.update({"exp": expire})
+    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
 
 # Run on startup
@@ -77,14 +93,6 @@ class TokenResponse(BaseModel):
     role: str
 
 
-# ── Helpers ───────────────────────────────────────────────────
-def create_token(data: dict):
-    to_encode = data.copy()
-    expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    to_encode.update({"exp": expire})
-    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-
-
 # ── Routes ────────────────────────────────────────────────────
 @app.get("/health")
 def health():
@@ -100,7 +108,7 @@ def register(req: RegisterRequest):
     try:
         cur.execute(
             "INSERT INTO users (username, email, password, role) VALUES (%s, %s, %s, %s)",
-            (req.username, req.email, pwd_ctx.hash(req.password), "user")
+            (req.username, req.email, hash_password(req.password), "user")
         )
         conn.commit()
     except psycopg2.errors.UniqueViolation:
@@ -121,7 +129,7 @@ def login(req: LoginRequest):
     cur.close()
     conn.close()
 
-    if not row or not pwd_ctx.verify(req.password, row[0]):
+    if not row or not verify_password(req.password, row[0]):
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
     token = create_token({"sub": req.username, "role": row[1]})
