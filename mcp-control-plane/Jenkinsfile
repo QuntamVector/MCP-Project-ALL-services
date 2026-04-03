@@ -22,7 +22,7 @@ pipeline {
             steps {
                 sh '''
                     printenv
-                    cd MCP-Project-ALL-services/${SERVICE_NAME} && docker build -t ${SERVICE_NAME}:latest .
+                    cd ${SERVICE_NAME} && docker build -t ${SERVICE_NAME}:latest .
                 '''
             }
         }
