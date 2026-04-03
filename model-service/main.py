@@ -1,12 +1,12 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
 from typing import Optional, List
-import anthropic
+from openai import OpenAI
 import os
 
 app = FastAPI(title="Model Service", version="1.0.0")
 
-client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 
 class InferenceRequest(BaseModel):
@@ -24,9 +24,9 @@ class InferenceResponse(BaseModel):
 
 
 MODEL_MAP = {
-    "claude-sonnet": "claude-sonnet-4-6",
-    "claude-opus":   "claude-opus-4-6",
-    "claude-haiku":  "claude-haiku-4-5-20251001",
+    "gpt-4o":        "gpt-4o",
+    "gpt-4o-mini":   "gpt-4o-mini",
+    "gpt-4-turbo":   "gpt-4-turbo",
 }
 
 
@@ -38,18 +38,21 @@ def health():
 @app.post("/inference", response_model=InferenceResponse)
 def run_inference(req: InferenceRequest):
     model = MODEL_MAP.get(req.model_id, req.model_id)
-    message = client.messages.create(
+    message = client.chat.completions.create(
         model=model,
         max_tokens=req.max_tokens,
-        system=req.system,
-        messages=[{"role": "user", "content": req.prompt}]
+        temperature=req.temperature,
+        messages=[
+            {"role": "system", "content": req.system},
+            {"role": "user",   "content": req.prompt},
+        ]
     )
     return InferenceResponse(
         model_id=req.model_id,
-        response=message.content[0].text,
+        response=message.choices[0].message.content,
         usage={
-            "input_tokens": message.usage.input_tokens,
-            "output_tokens": message.usage.output_tokens,
+            "input_tokens":  message.usage.prompt_tokens,
+            "output_tokens": message.usage.completion_tokens,
         }
     )
 

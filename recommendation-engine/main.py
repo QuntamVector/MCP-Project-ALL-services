@@ -1,12 +1,12 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
 from typing import Optional, List
-import anthropic
+from openai import OpenAI
 import os
 
 app = FastAPI(title="Recommendation Engine", version="1.0.0")
 
-client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 
 class RecommendationRequest(BaseModel):
@@ -31,25 +31,25 @@ User history: {history_text}
 Based on this user's history and context, provide {req.limit} personalized recommendations.
 Return as a JSON array with fields: id, title, reason, score (0-1)."""
 
-    response = client.messages.create(
-        model="claude-haiku-4-5-20251001",
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
         max_tokens=1024,
         messages=[{"role": "user", "content": prompt}],
     )
     return {
         "user_id": req.user_id,
-        "recommendations": response.content[0].text,
+        "recommendations": response.choices[0].message.content,
     }
 
 
 @app.post("/similar/{item_id}")
 def similar_items(item_id: str, limit: int = 5):
-    response = client.messages.create(
-        model="claude-haiku-4-5-20251001",
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
         max_tokens=512,
         messages=[{
             "role": "user",
             "content": f"Generate {limit} items similar to item ID: {item_id}. Return as JSON array with id, title, similarity_score."
         }],
     )
-    return {"item_id": item_id, "similar": response.content[0].text}
+    return {"item_id": item_id, "similar": response.choices[0].message.content}
