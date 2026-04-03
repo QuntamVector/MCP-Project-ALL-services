@@ -1,35 +1,37 @@
 import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
 import { authAPI } from '../api'
 
-export default function Login() {
-  const [username, setUsername] = useState('admin')
-  const [password, setPassword] = useState('admin123')
+export default function Register() {
+  const [form, setForm] = useState({ username: '', email: '', password: '', confirm: '' })
   const [loading, setLoading] = useState(false)
-  const { login } = useAuth()
   const navigate = useNavigate()
   const showToast = useToast()
 
-  const handleLogin = async () => {
-    if (!username || !password) return
+  const set = (k) => (v) => setForm(f => ({ ...f, [k]: v }))
+
+  const handleRegister = async () => {
+    if (!form.username || !form.email || !form.password || !form.confirm) {
+      showToast('❌ All fields are required')
+      return
+    }
+    if (form.password !== form.confirm) {
+      showToast('❌ Passwords do not match')
+      return
+    }
+    if (form.password.length < 6) {
+      showToast('❌ Password must be at least 6 characters')
+      return
+    }
     setLoading(true)
     try {
-      // Try real API first, fallback to demo mode
-      try {
-        const res = await authAPI.login(username, password)
-        login({ username, role: username === 'admin' ? 'Administrator' : 'User' }, res.data.access_token)
-      } catch {
-        // Demo mode — accept admin/admin123 or user/user123
-        const valid = (username === 'admin' && password === 'admin123') ||
-                      (username === 'user'  && password === 'user123')
-        if (!valid) throw new Error('Invalid credentials')
-        login({ username, role: username === 'admin' ? 'Administrator' : 'User' }, 'demo-token')
-      }
-      navigate('/dashboard')
-    } catch {
-      showToast('❌ Invalid credentials')
+      await authAPI.register(form.username, form.email, form.password)
+      showToast('✅ Account created! Please sign in.')
+      navigate('/login')
+    } catch (err) {
+      const msg = err?.response?.data?.detail || 'Registration failed'
+      showToast(`❌ ${msg}`)
     } finally {
       setLoading(false)
     }
@@ -37,7 +39,7 @@ export default function Login() {
 
   return (
     <div style={{
-      position: 'fixed', inset: 0, background: 'var(--bg)',
+      position: 'fixed', inset: 0,
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       background: 'radial-gradient(ellipse at 30% 20%,rgba(79,142,247,.12) 0%,transparent 60%), radial-gradient(ellipse at 70% 80%,rgba(168,85,247,.08) 0%,transparent 60%), var(--bg)',
     }}>
@@ -54,17 +56,19 @@ export default function Login() {
             display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
             fontSize: 30, marginBottom: 16,
           }}>🚀</div>
-          <h1 style={{ fontSize: 24, fontWeight: 700 }}>MCP Platform</h1>
-          <p style={{ color: 'var(--muted2)', fontSize: 14, marginTop: 4 }}>AI + DevOps System · AWS EKS</p>
+          <h1 style={{ fontSize: 24, fontWeight: 700 }}>Create Account</h1>
+          <p style={{ color: 'var(--muted2)', fontSize: 14, marginTop: 4 }}>MCP Platform · AI + DevOps</p>
         </div>
 
         {/* Form */}
-        <Field label="Username" value={username} onChange={setUsername} />
-        <Field label="Password" type="password" value={password} onChange={setPassword}
-          onKeyDown={e => e.key === 'Enter' && handleLogin()} />
+        <Field label="Username"         value={form.username} onChange={set('username')} />
+        <Field label="Email"            value={form.email}    onChange={set('email')}    type="email" />
+        <Field label="Password"         value={form.password} onChange={set('password')} type="password" />
+        <Field label="Confirm Password" value={form.confirm}  onChange={set('confirm')}  type="password"
+          onKeyDown={e => e.key === 'Enter' && handleRegister()} />
 
         <button
-          onClick={handleLogin}
+          onClick={handleRegister}
           disabled={loading}
           style={{
             width: '100%', border: 'none', borderRadius: 10, padding: 13,
@@ -73,21 +77,13 @@ export default function Login() {
             transition: '.2s', marginTop: 8,
           }}
         >
-          {loading ? 'Signing in...' : 'Sign In'}
+          {loading ? 'Creating account...' : 'Create Account'}
         </button>
 
-        <div style={{
-          textAlign: 'center', marginTop: 16, fontSize: 12, color: 'var(--muted)',
-          background: 'rgba(79,142,247,.08)', border: '1px solid rgba(79,142,247,.2)',
-          borderRadius: 8, padding: 8,
-        }}>
-          Demo: <strong>admin / admin123</strong> or <strong>user / user123</strong>
-        </div>
-
         <p style={{ textAlign: 'center', marginTop: 20, fontSize: 13, color: 'var(--muted2)' }}>
-          Don't have an account?{' '}
-          <Link to="/register" style={{ color: 'var(--blue)', textDecoration: 'none', fontWeight: 600 }}>
-            Create one
+          Already have an account?{' '}
+          <Link to="/login" style={{ color: 'var(--blue)', textDecoration: 'none', fontWeight: 600 }}>
+            Sign in
           </Link>
         </p>
       </div>
