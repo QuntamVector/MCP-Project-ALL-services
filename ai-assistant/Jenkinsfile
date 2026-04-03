@@ -22,6 +22,7 @@ pipeline {
             steps {
                 sh '''
                     printenv
+                    pwd
                     cd MCP-Project-ALL-services/${SERVICE_NAME} && docker build -t ${SERVICE_NAME}:latest .
                 '''
             }
