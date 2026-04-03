@@ -1,37 +1,53 @@
+import { useState, useEffect } from 'react'
 import Card from '../components/Card'
-
-const INFO = [
-  { label: 'Status',             value: 'Running',                   color: 'var(--green)' },
-  { label: 'Version',            value: '1.0.0' },
-  { label: 'Registered Models',  value: '3' },
-  { label: 'Namespace',          value: 'mcp-platform' },
-  { label: 'Cluster',            value: 'mcp-platform-dev · EKS 1.29' },
-  { label: 'Region',             value: 'ap-northeast-1' },
-]
-
-const METRICS = [
-  { label: 'CPU',             value: 42,  color: 'var(--blue)',   display: '42%' },
-  { label: 'Memory',          value: 61,  color: 'var(--purple)', display: '61%' },
-  { label: 'Pod Count',       value: 28,  color: 'var(--green)',  display: '14 / 50' },
-  { label: 'Storage',         value: 35,  color: 'var(--orange)', display: '35%' },
-]
-
-const PODS = [
-  { name: 'mcp-api-gateway-7d8f-xkp2q', service: 'API Gateway',  status: 'Running', restarts: 0, age: '2d', node: 'node-general-1' },
-  { name: 'mcp-api-gateway-7d8f-v9wlm', service: 'API Gateway',  status: 'Running', restarts: 0, age: '2d', node: 'node-general-2' },
-  { name: 'auth-service-5b9c-jk3nt',    service: 'Auth',          status: 'Running', restarts: 1, age: '2d', node: 'node-general-1' },
-  { name: 'model-service-6f4d-m2rts',   service: 'Model Service', status: 'Running', restarts: 0, age: '2d', node: 'node-ai-1' },
-  { name: 'model-service-6f4d-nw7pz',   service: 'Model Service', status: 'Running', restarts: 0, age: '2d', node: 'node-ai-2' },
-  { name: 'ai-assistant-3c7e-qp8kx',    service: 'AI Assistant',  status: 'Running', restarts: 0, age: '1d', node: 'node-ai-1' },
-  { name: 'redis-8b2a-lx4vw',           service: 'Redis',         status: 'Running', restarts: 0, age: '5d', node: 'node-general-2' },
-  { name: 'postgresql-0',               service: 'PostgreSQL',    status: 'Running', restarts: 0, age: '5d', node: 'node-general-3' },
-]
+import { controlPlaneAPI } from '../api'
 
 export default function ControlPlane() {
+  const [data, setData] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+
+  useEffect(() => {
+    controlPlaneAPI.status()
+      .then(r => setData(r.data))
+      .catch(e => setError('Failed to load cluster data'))
+      .finally(() => setLoading(false))
+  }, [])
+
+  if (loading) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)' }}>Loading cluster data...</div>
+  if (error)   return <div style={{ padding: 40, textAlign: 'center', color: 'var(--red)' }}>{error}</div>
+
+  const cluster = data?.cluster || {}
+  const pods    = data?.pods?.items || []
+  const nodes   = data?.nodes?.items || []
+  const metrics = data?.metrics || {}
+
+  const INFO = [
+    { label: 'Status',            value: cluster.status || 'Unknown',        color: cluster.status === 'ACTIVE' ? 'var(--green)' : 'var(--yellow)' },
+    { label: 'Version',           value: `EKS ${cluster.version || 'N/A'}` },
+    { label: 'Registered Models', value: String(data?.registered_models ?? 0) },
+    { label: 'Namespace',         value: data?.namespace || 'mcp-platform' },
+    { label: 'Cluster',           value: cluster.name || 'N/A' },
+    { label: 'Region',            value: cluster.region || 'N/A' },
+  ]
+
+  const podTotal   = data?.pods?.total || 0
+  const podRunning = data?.pods?.running || 0
+  const nodeTotal  = data?.nodes?.total || 0
+  const cpuUsed    = metrics.cpu_used_millicores || 0
+  const memUsed    = metrics.memory_used_mb || 0
+
+  const METRICS = [
+    { label: 'CPU',        value: Math.min(cpuUsed / 40, 100),  color: 'var(--blue)',   display: `${cpuUsed}m` },
+    { label: 'Memory',     value: Math.min(memUsed / 20, 100),  color: 'var(--purple)', display: `${memUsed} MB` },
+    { label: 'Pod Count',  value: (podRunning / Math.max(podTotal, 1)) * 100, color: 'var(--green)',  display: `${podRunning} / ${podTotal}` },
+    { label: 'Nodes',      value: (nodeTotal / 5) * 100,         color: 'var(--orange)', display: `${nodeTotal} nodes` },
+  ]
+
   return (
     <div style={{ animation: 'fadeIn .2s ease' }}>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 20 }}>
-        {/* Status */}
+        {/* Cluster Status */}
         <Card title="⚙️ Control Plane Status">
           {INFO.map(({ label, value, color }) => (
             <div key={label} style={{
@@ -44,7 +60,7 @@ export default function ControlPlane() {
           ))}
         </Card>
 
-        {/* Resources */}
+        {/* Resource Usage */}
         <Card title="📈 Resource Usage">
           <div style={{ display: 'flex', flexDirection: 'column', gap: 18, marginTop: 8 }}>
             {METRICS.map(m => (
@@ -54,7 +70,7 @@ export default function ControlPlane() {
                   <span style={{ color: m.color, fontWeight: 600 }}>{m.display}</span>
                 </div>
                 <div style={{ height: 6, background: 'rgba(255,255,255,.08)', borderRadius: 3 }}>
-                  <div style={{ width: `${m.value}%`, height: '100%', background: m.color, borderRadius: 3, transition: 'width 1s ease' }} />
+                  <div style={{ width: `${Math.min(m.value, 100)}%`, height: '100%', background: m.color, borderRadius: 3, transition: 'width 1s ease' }} />
                 </div>
               </div>
             ))}
@@ -62,43 +78,81 @@ export default function ControlPlane() {
         </Card>
       </div>
 
-      {/* Pods table */}
+      {/* Nodes */}
+      {nodes.length > 0 && (
+        <Card title="🖥️ Nodes" style={{ marginBottom: 20 }}>
+          <div style={{ marginTop: 12, overflow: 'hidden', borderRadius: 10, border: '1px solid var(--border)' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead style={{ background: 'var(--card2)' }}>
+                <tr>
+                  {['Node Name', 'Status', 'Instance Type', 'Zone', 'Kubelet'].map(h => (
+                    <th key={h} style={{ padding: '11px 14px', fontSize: 11, fontWeight: 600, color: 'var(--muted2)', textAlign: 'left', textTransform: 'uppercase', letterSpacing: '.6px', borderBottom: '1px solid var(--border)' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {nodes.map((n, i) => (
+                  <tr key={n.name}
+                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,.025)'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                    style={{ borderBottom: i < nodes.length - 1 ? '1px solid rgba(42,45,62,.5)' : 'none' }}
+                  >
+                    <td style={td}><code style={{ fontSize: 11, color: 'var(--cyan)' }}>{n.name}</code></td>
+                    <td style={td}>
+                      <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 6, fontWeight: 600, background: n.status === 'Ready' ? 'rgba(62,207,142,.15)' : 'rgba(239,68,68,.15)', color: n.status === 'Ready' ? 'var(--green)' : 'var(--red)' }}>
+                        {n.status}
+                      </span>
+                    </td>
+                    <td style={td}>{n.instance}</td>
+                    <td style={td}>{n.zone}</td>
+                    <td style={td}>{n.kubelet}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
+
+      {/* Pods */}
       <Card title="🐳 Running Pods">
+        {pods.length === 0 ? (
+          <div style={{ padding: 20, textAlign: 'center', color: 'var(--muted)' }}>No pods found</div>
+        ) : (
         <div style={{ marginTop: 12, overflow: 'hidden', borderRadius: 10, border: '1px solid var(--border)' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead style={{ background: 'var(--card2)' }}>
               <tr>
-                {['Pod Name', 'Service', 'Status', 'Restarts', 'Age', 'Node'].map(h => (
-                  <th key={h} style={{
-                    padding: '11px 14px', fontSize: 11, fontWeight: 600, color: 'var(--muted2)',
-                    textAlign: 'left', textTransform: 'uppercase', letterSpacing: '.6px',
-                    borderBottom: '1px solid var(--border)',
-                  }}>{h}</th>
+                {['Pod Name', 'Service', 'Status', 'Restarts', 'Node'].map(h => (
+                  <th key={h} style={{ padding: '11px 14px', fontSize: 11, fontWeight: 600, color: 'var(--muted2)', textAlign: 'left', textTransform: 'uppercase', letterSpacing: '.6px', borderBottom: '1px solid var(--border)' }}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {PODS.map((p, i) => (
+              {pods.map((p, i) => (
                 <tr key={p.name}
                   onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,.025)'}
                   onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                  style={{ borderBottom: i < PODS.length - 1 ? '1px solid rgba(42,45,62,.5)' : 'none' }}
+                  style={{ borderBottom: i < pods.length - 1 ? '1px solid rgba(42,45,62,.5)' : 'none' }}
                 >
                   <td style={td}><code style={{ fontSize: 11, color: 'var(--cyan)' }}>{p.name}</code></td>
                   <td style={td}>{p.service}</td>
                   <td style={td}>
-                    <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 6, fontWeight: 600, background: 'rgba(62,207,142,.15)', color: 'var(--green)' }}>
+                    <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 6, fontWeight: 600,
+                      background: p.status === 'Running' ? 'rgba(62,207,142,.15)' : 'rgba(239,68,68,.15)',
+                      color: p.status === 'Running' ? 'var(--green)' : 'var(--red)',
+                    }}>
                       {p.status}
                     </span>
                   </td>
                   <td style={td}>{p.restarts}</td>
-                  <td style={td}>{p.age}</td>
-                  <td style={td}>{p.node}</td>
+                  <td style={td}><code style={{ fontSize: 11 }}>{p.node}</code></td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
+        )}
       </Card>
     </div>
   )

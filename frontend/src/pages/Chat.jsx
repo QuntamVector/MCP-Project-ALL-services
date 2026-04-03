@@ -4,7 +4,7 @@ import { useToast } from '../context/ToastContext'
 
 const FALLBACK = [
   "I can help with that! The MCP platform is running 9 microservices on AWS EKS with all systems healthy.",
-  "The recommendation engine uses Claude Haiku to analyze user behaviour and generate personalized suggestions based on purchase history and browsing patterns.",
+  "The recommendation engine uses GPT-4o-mini to analyze user behaviour and generate personalized suggestions based on purchase history and browsing patterns.",
   "The MCP API Gateway validates JWT tokens via the Auth Service and proxies requests to downstream services — auth, model, AI assistant, products, users, and payments.",
   "Based on current metrics: 2,841 API requests processed today, 384 AI inferences served, $12,480 revenue generated. All pods are running.",
   "The Control Plane manages the model registry. You can register new models, update endpoints, and track versioning — accessible from the Control Plane page.",
@@ -16,7 +16,7 @@ export default function Chat() {
   const [messages, setMessages] = useState([
     {
       role: 'assistant',
-      content: "Hello! I'm the MCP AI Assistant powered by Claude. I can help you with product queries, recommendations, platform questions, or anything else. How can I help you today?",
+      content: "Hello! I'm the MCP AI Assistant powered by OpenAI GPT-4o. I can help you with product queries, recommendations, platform questions, or anything else. How can I help you today?",
       time: now(),
     }
   ])

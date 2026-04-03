@@ -2,38 +2,44 @@ import { useState, useEffect } from 'react'
 import { userAPI } from '../api'
 import { useToast } from '../context/ToastContext'
 
-const DEMO = [
-  { id:'u001', name:'Alice Johnson', email:'alice@example.com', role:'admin',  status:'Active',   joined:'Jan 12, 2025' },
-  { id:'u002', name:'Bob Smith',     email:'bob@example.com',   role:'user',   status:'Active',   joined:'Feb 3, 2025' },
-  { id:'u003', name:'Carol White',   email:'carol@example.com', role:'user',   status:'Active',   joined:'Feb 20, 2025' },
-  { id:'u004', name:'David Lee',     email:'david@example.com', role:'user',   status:'Inactive', joined:'Mar 5, 2025' },
-  { id:'u005', name:'Eva Martinez',  email:'eva@example.com',   role:'admin',  status:'Active',   joined:'Mar 15, 2025' },
-]
-
 export default function Users() {
-  const [users, setUsers] = useState(DEMO)
+  const [users, setUsers] = useState([])
+  const [loading, setLoading] = useState(true)
   const showToast = useToast()
 
   useEffect(() => {
-    userAPI.list().then(r => setUsers(r.data.users)).catch(() => {})
+    userAPI.list()
+      .then(r => setUsers(r.data.users || []))
+      .catch(() => showToast('❌ Failed to load users'))
+      .finally(() => setLoading(false))
   }, [])
 
-  const remove = (u) => {
-    setUsers(prev => prev.filter(x => x.id !== u.id))
-    showToast(`🗑️ ${u.name} removed`)
+  const remove = async (u) => {
+    try {
+      await userAPI.delete(u.id)
+      setUsers(prev => prev.filter(x => x.id !== u.id))
+      showToast(`🗑️ ${u.username} removed`)
+    } catch {
+      showToast('❌ Failed to delete user')
+    }
   }
 
   return (
     <div style={{ animation: 'fadeIn .2s ease' }}>
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 20 }}>
-        <button onClick={() => showToast('✅ User form coming soon!')} style={btnStyle}>+ Add User</button>
+        <button onClick={() => showToast('✅ Use Register page to add users')} style={btnStyle}>+ Add User</button>
       </div>
 
       <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 14, overflow: 'hidden' }}>
+        {loading ? (
+          <div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)' }}>Loading users...</div>
+        ) : users.length === 0 ? (
+          <div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)' }}>No users found. Register a user to get started.</div>
+        ) : (
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead style={{ background: 'var(--card2)' }}>
             <tr>
-              {['User', 'Email', 'Role', 'Status', 'Joined', 'Actions'].map(h => (
+              {['User', 'Email', 'Role', 'Joined', 'Actions'].map(h => (
                 <th key={h} style={{
                   padding: '12px 16px', fontSize: 12, fontWeight: 600,
                   color: 'var(--muted2)', textAlign: 'left',
@@ -56,8 +62,8 @@ export default function Users() {
                     background: 'linear-gradient(135deg,#4f8ef7,#a855f7)',
                     display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
                     fontSize: 12, fontWeight: 700, marginRight: 8, verticalAlign: 'middle',
-                  }}>{u.name[0]}</span>
-                  {u.name}
+                  }}>{(u.username || u.name || '?')[0].toUpperCase()}</span>
+                  {u.username || u.name}
                 </td>
                 <td style={td}>{u.email}</td>
                 <td style={td}>
@@ -68,23 +74,15 @@ export default function Users() {
                       : { background: 'rgba(79,142,247,.15)', color: 'var(--blue)' })
                   }}>{u.role}</span>
                 </td>
+                <td style={td}>{u.created_at ? new Date(u.created_at).toLocaleDateString() : '—'}</td>
                 <td style={td}>
-                  <span style={{
-                    fontSize: 11, padding: '3px 9px', borderRadius: 6, fontWeight: 600,
-                    ...(u.status === 'Active'
-                      ? { background: 'rgba(62,207,142,.15)', color: 'var(--green)' }
-                      : { background: 'rgba(234,179,8,.15)', color: 'var(--yellow)' })
-                  }}>{u.status}</span>
-                </td>
-                <td style={td}>{u.joined}</td>
-                <td style={td}>
-                  <ActionBtn color="blue" onClick={() => showToast(`✏️ Editing ${u.name}`)}>Edit</ActionBtn>
-                  <ActionBtn color="red" onClick={() => remove(u)} style={{ marginLeft: 4 }}>Delete</ActionBtn>
+                  <ActionBtn color="red" onClick={() => remove(u)}>Delete</ActionBtn>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
+        )}
       </div>
     </div>
   )
