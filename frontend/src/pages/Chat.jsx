@@ -2,15 +2,6 @@ import { useState, useRef, useEffect } from 'react'
 import { aiAPI } from '../api'
 import { useToast } from '../context/ToastContext'
 
-const FALLBACK = [
-  "I can help with that! The MCP platform is running 9 microservices on AWS EKS with all systems healthy.",
-  "The recommendation engine uses GPT-4o-mini to analyze user behaviour and generate personalized suggestions based on purchase history and browsing patterns.",
-  "The MCP API Gateway validates JWT tokens via the Auth Service and proxies requests to downstream services — auth, model, AI assistant, products, users, and payments.",
-  "Based on current metrics: 2,841 API requests processed today, 384 AI inferences served, $12,480 revenue generated. All pods are running.",
-  "The Control Plane manages the model registry. You can register new models, update endpoints, and track versioning — accessible from the Control Plane page.",
-  "For CI/CD: Jenkins builds each service, pushes to ECR, and patches the GitOps repo. ArgoCD detects the change and rolls out the new image on EKS automatically.",
-]
-let fallbackIdx = 0
 
 export default function Chat() {
   const [messages, setMessages] = useState([
@@ -42,11 +33,9 @@ export default function Chat() {
       const history = messages.concat(userMsg).map(m => ({ role: m.role, content: m.content }))
       const res = await aiAPI.chat(history)
       setMessages(prev => [...prev, { role: 'assistant', content: res.data.response, time: now() }])
-    } catch {
-      // Fallback demo response
-      await delay(1200 + Math.random() * 600)
-      const reply = FALLBACK[fallbackIdx++ % FALLBACK.length]
-      setMessages(prev => [...prev, { role: 'assistant', content: reply, time: now() }])
+    } catch (err) {
+      const msg = err?.response?.data?.detail || 'Failed to reach AI Assistant. Please try again.'
+      setMessages(prev => [...prev, { role: 'assistant', content: `⚠️ ${msg}`, time: now() }])
     } finally {
       setTyping(false)
     }
@@ -159,6 +148,3 @@ function now() {
   return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 }
 
-function delay(ms) {
-  return new Promise(r => setTimeout(r, ms))
-}
