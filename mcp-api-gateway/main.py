@@ -76,14 +76,21 @@ async def proxy(service: str, path: str, request: Request):
     url = f"{SERVICES[service]}/{path}"
     body = await request.body()
 
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        resp = await client.request(
-            method=request.method,
-            url=url,
-            headers={k: v for k, v in request.headers.items() if k.lower() != "host"},
-            content=body,
-            params=dict(request.query_params),
-        )
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            resp = await client.request(
+                method=request.method,
+                url=url,
+                headers={k: v for k, v in request.headers.items() if k.lower() != "host"},
+                content=body,
+                params=dict(request.query_params),
+            )
+    except httpx.ConnectError:
+        logger.error(f"Cannot reach {service} at {url}")
+        raise HTTPException(status_code=503, detail=f"Service '{service}' is unavailable")
+    except httpx.TimeoutException:
+        logger.error(f"Timeout reaching {service} at {url}")
+        raise HTTPException(status_code=504, detail=f"Service '{service}' timed out")
 
     logger.info(f"Proxied {request.method} /{service}/{path} -> {resp.status_code}")
 

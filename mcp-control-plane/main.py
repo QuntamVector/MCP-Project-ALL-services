@@ -159,27 +159,39 @@ def get_resource_metrics():
 # ── Main status endpoint ──────────────────────────────────────
 @app.get("/status")
 def control_plane_status():
-    pods  = get_pods()
-    nodes = get_nodes()
-    eks   = get_eks_info()
+    try:
+        pods  = get_pods()
+        nodes = get_nodes()
+        eks   = get_eks_info()
 
-    running = sum(1 for p in pods if p.get("status") == "Running")
-    total   = len(pods)
+        running = sum(1 for p in pods if p.get("status") == "Running")
+        total   = len(pods)
 
-    return {
-        "cluster":           eks,
-        "namespace":         NAMESPACE,
-        "registered_models": len(registered_models),
-        "pods": {
-            "total":   total,
-            "running": running,
-            "items":   pods,
-        },
-        "nodes": {
-            "total": len(nodes),
-            "items": nodes,
-        },
-        "metrics": get_resource_metrics(),
-        "status":  "running",
-        "version": "1.0.0",
-    }
+        return {
+            "cluster":           eks,
+            "namespace":         NAMESPACE,
+            "registered_models": len(registered_models),
+            "pods": {
+                "total":   total,
+                "running": running,
+                "items":   pods,
+            },
+            "nodes": {
+                "total": len(nodes),
+                "items": nodes,
+            },
+            "metrics": get_resource_metrics(),
+            "status":  "running",
+            "version": "1.0.0",
+        }
+    except Exception as e:
+        return {
+            "cluster":           {"name": CLUSTER_NAME, "status": "Unknown", "version": "N/A", "region": AWS_REGION, "error": str(e)},
+            "namespace":         NAMESPACE,
+            "registered_models": len(registered_models),
+            "pods":    {"total": 0, "running": 0, "items": []},
+            "nodes":   {"total": 0, "items": []},
+            "metrics": {"cpu_used_millicores": 0, "memory_used_mb": 0},
+            "status":  "degraded",
+            "version": "1.0.0",
+        }

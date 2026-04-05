@@ -7,8 +7,9 @@ export default function Chat() {
   const [messages, setMessages] = useState([
     {
       role: 'assistant',
-      content: "Hello! I'm the MCP AI Assistant powered by OpenAI GPT-4o. I can help you with product queries, recommendations, platform questions, or anything else. How can I help you today?",
+      content: "Hello! I'm the MCP AI Assistant powered by OpenAI GPT-4o-mini. I can help you with product queries, recommendations, platform questions, or anything else. How can I help you today?",
       time: now(),
+      isInitial: true,
     }
   ])
   const [input, setInput] = useState('')
@@ -30,7 +31,7 @@ export default function Chat() {
     setTyping(true)
 
     try {
-      const history = messages.concat(userMsg).map(m => ({ role: m.role, content: m.content }))
+      const history = messages.concat(userMsg).filter(m => !m.isInitial).map(m => ({ role: m.role, content: m.content }))
       const res = await aiAPI.chat(history)
       setMessages(prev => [...prev, { role: 'assistant', content: res.data.response, time: now() }])
     } catch (err) {
