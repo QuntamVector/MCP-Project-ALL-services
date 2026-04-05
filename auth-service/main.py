@@ -10,7 +10,7 @@ app = FastAPI(title="Auth Service", version="1.0.0")
 
 SECRET_KEY = os.getenv("JWT_SECRET", "change-me-in-production")
 ALGORITHM  = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60
+ACCESS_TOKEN_EXPIRE_MINUTES = 480  # 8 hours
 
 pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
