@@ -111,10 +111,11 @@ export const modelAPI = {
 }
 
 export const controlPlaneAPI = {
-  status:   ()      => api.get('/control-plane/status'),
-  models:   ()      => api.get('/control-plane/models'),
-  register: (data)  => api.post('/control-plane/models/register', data),
-  remove:   (id)    => api.delete(`/control-plane/models/${id}`),
+  status:     (namespace) => api.get('/control-plane/status', { params: namespace ? { namespace } : {} }),
+  namespaces: ()          => api.get('/control-plane/namespaces'),
+  models:     ()          => api.get('/control-plane/models'),
+  register:   (data)      => api.post('/control-plane/models/register', data),
+  remove:     (id)        => api.delete(`/control-plane/models/${id}`),
 }
 
 export default api
