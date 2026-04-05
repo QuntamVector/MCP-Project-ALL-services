@@ -144,3 +144,19 @@ def verify_token(authorization: str):
         return {"valid": True, "user": payload.get("sub"), "role": payload.get("role")}
     except JWTError:
         raise HTTPException(status_code=401, detail="Invalid token")
+
+
+@app.post("/refresh")
+def refresh_token(authorization: str):
+    try:
+        token = authorization.replace("Bearer ", "")
+        # Decode without expiry check so expired tokens can still be refreshed
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM], options={"verify_exp": False})
+        sub  = payload.get("sub")
+        role = payload.get("role")
+        if not sub:
+            raise HTTPException(status_code=401, detail="Invalid token")
+        new_token = create_token({"sub": sub, "role": role})
+        return {"access_token": new_token, "token_type": "bearer", "role": role}
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid token")

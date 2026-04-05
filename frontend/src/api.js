@@ -13,13 +13,58 @@ api.interceptors.request.use((config) => {
   return config
 })
 
+// Silent token refresh — when a 401 happens, get a new token and retry once
+let isRefreshing = false
+let pendingQueue = []
+
+const processQueue = (error, token = null) => {
+  pendingQueue.forEach(({ resolve, reject }) => error ? reject(error) : resolve(token))
+  pendingQueue = []
+}
+
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
-      localStorage.removeItem('token')
-      localStorage.removeItem('user')
-      window.location.href = '/login'
+  async (error) => {
+    const original = error.config
+    if (error.response?.status === 401 && !original._retry) {
+      const token = localStorage.getItem('token')
+      if (!token) {
+        window.location.href = '/login'
+        return Promise.reject(error)
+      }
+
+      if (isRefreshing) {
+        return new Promise((resolve, reject) => {
+          pendingQueue.push({ resolve, reject })
+        }).then(newToken => {
+          original.headers.Authorization = `Bearer ${newToken}`
+          return api(original)
+        })
+      }
+
+      original._retry = true
+      isRefreshing = true
+
+      try {
+        const res = await axios.post(
+          `${BASE}/api/auth/refresh`,
+          null,
+          { params: { authorization: `Bearer ${token}` } }
+        )
+        const newToken = res.data.access_token
+        localStorage.setItem('token', newToken)
+        processQueue(null, newToken)
+        original.headers.Authorization = `Bearer ${newToken}`
+        return api(original)
+      } catch (refreshError) {
+        processQueue(refreshError, null)
+        localStorage.removeItem('token')
+        localStorage.removeItem('user')
+        window.location.href = '/login'
+        return Promise.reject(refreshError)
+      } finally {
+        isRefreshing = false
+      }
     }
     return Promise.reject(error)
   }
