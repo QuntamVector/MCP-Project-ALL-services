@@ -19,12 +19,12 @@ app.add_middleware(
 
 SERVICES = {
     "auth":           os.getenv("AUTH_SERVICE_URL",           "http://auth-service:8001"),
-    "model":          os.getenv("MODEL_SERVICE_URL",          "http://model-service:8003"),
-    "ai-assistant":   os.getenv("AI_ASSISTANT_URL",           "http://ai-assistant:8004"),
-    "recommendation": os.getenv("RECOMMENDATION_ENGINE_URL",  "http://recommendation-engine:8005"),
-    "product":        os.getenv("PRODUCT_SERVICE_URL",        "http://product-service:8006"),
-    "user":           os.getenv("USER_SERVICE_URL",           "http://user-service:8007"),
-    "payment":        os.getenv("PAYMENT_SERVICE_URL",        "http://payment-service:8009"),
+    "model":          os.getenv("MODEL_SERVICE_URL",          "http://model-service:8002"),
+    "ai-assistant":   os.getenv("AI_ASSISTANT_URL",           "http://ai-assistant:8003"),
+    "recommendation": os.getenv("RECOMMENDATION_ENGINE_URL",  "http://recommendation-engine:8004"),
+    "product":        os.getenv("PRODUCT_SERVICE_URL",        "http://product-service:8005"),
+    "user":           os.getenv("USER_SERVICE_URL",           "http://user-service:8006"),
+    "payment":        os.getenv("PAYMENT_SERVICE_URL",        "http://payment-service:8007"),
     "control-plane":  os.getenv("MCP_CONTROL_PLANE_URL",      "http://mcp-control-plane:8008"),
 }
 
