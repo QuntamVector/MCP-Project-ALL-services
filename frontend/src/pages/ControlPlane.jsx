@@ -10,12 +10,20 @@ export default function ControlPlane() {
   useEffect(() => {
     controlPlaneAPI.status()
       .then(r => setData(r.data))
-      .catch(e => setError('Failed to load cluster data'))
+      .catch(e => {
+        const detail = e?.response?.data?.detail || e?.message || 'Unknown error'
+        setError(detail)
+      })
       .finally(() => setLoading(false))
   }, [])
 
   if (loading) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)' }}>Loading cluster data...</div>
-  if (error)   return <div style={{ padding: 40, textAlign: 'center', color: 'var(--red)' }}>{error}</div>
+  if (error)   return (
+    <div style={{ padding: 40, textAlign: 'center' }}>
+      <div style={{ color: 'var(--red)', marginBottom: 8, fontSize: 16 }}>Failed to load cluster data</div>
+      <div style={{ color: 'var(--muted)', fontSize: 13 }}>{error}</div>
+    </div>
+  )
 
   const cluster = data?.cluster || {}
   const pods    = data?.pods?.items || []
