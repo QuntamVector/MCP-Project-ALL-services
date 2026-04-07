@@ -6,6 +6,7 @@ import Register from './pages/Register'
 import Layout from './components/Layout'
 import Dashboard from './pages/Dashboard'
 import Chat from './pages/Chat'
+import Chatbot from './pages/Chatbot'
 import Products from './pages/Products'
 import Users from './pages/Users'
 import Payments from './pages/Payments'
@@ -29,6 +30,7 @@ export default function App() {
               <Route index element={<Navigate to="/dashboard" replace />} />
               <Route path="dashboard"     element={<Dashboard />} />
               <Route path="chat"          element={<Chat />} />
+              <Route path="chatbot"       element={<Chatbot />} />
               <Route path="products"      element={<Products />} />
               <Route path="users"         element={<Users />} />
               <Route path="payments"      element={<Payments />} />

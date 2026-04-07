@@ -7,7 +7,8 @@ const NAV = [
   ]},
   { section: 'AI Services', items: [
     { to: '/chat',          icon: '💬', label: 'AI Assistant',       badge: 'AI',  badgeColor: 'purple' },
-    { to: '/models',        icon: '🤖', label: 'Model Registry',     badge: 'AI',  badgeColor: 'purple' },
+    { to: '/chatbot',       icon: '🤖', label: 'Chatbot + MCP',      badge: 'NEW', badgeColor: 'blue' },
+    { to: '/models',        icon: '🧠', label: 'Model Registry',     badge: 'AI',  badgeColor: 'purple' },
   ]},
   { section: 'Business', items: [
     { to: '/products',      icon: '📦', label: 'Products',           badge: '6',   badgeColor: 'green' },
