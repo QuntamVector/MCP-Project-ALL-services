@@ -4,76 +4,143 @@ from typing import Optional, List
 from openai import OpenAI
 import os
 import httpx
-import time
 import json
 
-app = FastAPI(title="AI Assistant Service", version="1.0.0")
+app = FastAPI(title="AI Assistant Service", version="2.0.0")
 
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-CONTROL_PLANE_URL = os.getenv("MCP_CONTROL_PLANE_URL", "http://mcp-control-plane:8008")
+CONTROL_PLANE_URL   = os.getenv("MCP_CONTROL_PLANE_URL",     "http://mcp-control-plane:8008")
+PRODUCT_SERVICE_URL = os.getenv("PRODUCT_SERVICE_URL",       "http://product-service:8005")
+USER_SERVICE_URL    = os.getenv("USER_SERVICE_URL",          "http://user-service:8006")
+PAYMENT_SERVICE_URL = os.getenv("PAYMENT_SERVICE_URL",       "http://payment-service:8007")
+MODEL_SERVICE_URL   = os.getenv("MODEL_SERVICE_URL",         "http://model-service:8002")
 
-# Cache cluster status for 30 seconds to avoid hitting control-plane on every message
-_cluster_cache = {"data": None, "ts": 0}
-CACHE_TTL = 30
+SYSTEM_PROMPT = """You are an intelligent AI assistant built into the MCP Platform — a cloud-native microservices platform running on Kubernetes/EKS.
+
+You have two modes:
+1. GENERAL ASSISTANT — answer any question: coding, explanations, writing, analysis, maths, etc.
+2. MCP PLATFORM ASSISTANT — query live platform data using your tools whenever the user asks about:
+   - Products, inventory, catalog
+   - Users, accounts, registrations
+   - Cluster health, pods, nodes, resource usage
+   - AI models in the registry
+   - Payments, transactions
+
+Rules:
+- Always use tools when the user asks about platform data — never make up platform-specific details.
+- For general questions (not about the platform), answer directly from your knowledge.
+- Be concise but complete. Format data clearly using lists or tables when helpful.
+- If a tool returns an error, tell the user which service is unreachable."""
+
+MCP_TOOLS = [
+    {
+        "type": "function",
+        "function": {
+            "name": "get_cluster_status",
+            "description": "Get live Kubernetes cluster status: pods, nodes, CPU/memory usage, cluster info.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "namespace": {"type": "string", "description": "Kubernetes namespace (optional, defaults to mcp-platform)"}
+                }
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_products",
+            "description": "List all products in the platform catalog. Optionally filter by category.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "category": {"type": "string", "description": "Filter by category (optional)"}
+                }
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_product",
+            "description": "Get details of a specific product by ID.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "product_id": {"type": "string", "description": "The product ID"}
+                },
+                "required": ["product_id"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_users",
+            "description": "List all registered users on the platform.",
+            "parameters": {"type": "object", "properties": {}}
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_models",
+            "description": "List AI models registered in the MCP model registry.",
+            "parameters": {"type": "object", "properties": {}}
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_payment",
+            "description": "Look up a payment record by payment ID.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "payment_id": {"type": "string", "description": "The payment UUID"}
+                },
+                "required": ["payment_id"]
+            }
+        }
+    },
+]
 
 
-def fetch_cluster_context() -> str:
-    now = time.time()
-    if _cluster_cache["data"] and (now - _cluster_cache["ts"]) < CACHE_TTL:
-        return _cluster_cache["data"]
-
+def call_tool(name: str, args: dict) -> str:
     try:
-        resp = httpx.get(f"{CONTROL_PLANE_URL}/status", timeout=5.0)
-        if resp.status_code == 200:
-            status = resp.json()
-            cluster = status.get("cluster", {})
-            pods = status.get("pods", {})
-            nodes = status.get("nodes", {})
-            metrics = status.get("metrics", {})
+        with httpx.Client(timeout=8.0) as http:
+            if name == "get_cluster_status":
+                params = {"namespace": args["namespace"]} if "namespace" in args else {}
+                r = http.get(f"{CONTROL_PLANE_URL}/status", params=params)
+                return r.text
 
-            # Build a concise summary for the system prompt
-            pod_lines = []
-            for p in pods.get("items", []):
-                if "error" not in p:
-                    pod_lines.append(
-                        f"  - {p['service']} | pod: {p['name']} | status: {p['status']} | restarts: {p['restarts']}"
-                    )
+            elif name == "get_products":
+                params = {"category": args["category"]} if "category" in args else {}
+                r = http.get(f"{PRODUCT_SERVICE_URL}/products", params=params)
+                return r.text
 
-            node_lines = []
-            for n in nodes.get("items", []):
-                if "error" not in n:
-                    node_lines.append(
-                        f"  - {n['name']} | {n['status']} | type: {n['instance']} | zone: {n['zone']}"
-                    )
+            elif name == "get_product":
+                r = http.get(f"{PRODUCT_SERVICE_URL}/products/{args['product_id']}")
+                return r.text
 
-            context = f"""
-LIVE CLUSTER DATA (fetched in real-time from control plane):
-Cluster: {cluster.get('name')} | region: {cluster.get('region')} | k8s: {cluster.get('version')} | status: {cluster.get('status')}
-Namespace: {status.get('namespace')}
-Pods ({pods.get('running')}/{pods.get('total')} running):
-{chr(10).join(pod_lines) if pod_lines else '  (unavailable)'}
-Nodes ({nodes.get('total')} total):
-{chr(10).join(node_lines) if node_lines else '  (unavailable)'}
-Resource usage: CPU {metrics.get('cpu_used_millicores')}m | Memory {metrics.get('memory_used_mb')}MB
-"""
-            _cluster_cache["data"] = context
-            _cluster_cache["ts"] = now
-            return context
+            elif name == "get_users":
+                r = http.get(f"{USER_SERVICE_URL}/users")
+                return r.text
+
+            elif name == "get_models":
+                r = http.get(f"{CONTROL_PLANE_URL}/models")
+                return r.text
+
+            elif name == "get_payment":
+                r = http.get(f"{PAYMENT_SERVICE_URL}/payments/{args['payment_id']}")
+                return r.text
+
+            else:
+                return json.dumps({"error": f"Unknown tool: {name}"})
+
     except Exception as e:
-        pass
-
-    return "(Cluster data currently unavailable — control plane unreachable)"
-
-
-def build_system_prompt() -> str:
-    cluster_context = fetch_cluster_context()
-    return f"""You are an intelligent AI assistant integrated into the MCP platform.
-You can help with anything: general questions, coding, explanations, writing, analysis, and platform-specific queries.
-When answering questions about the cluster, services, or infrastructure, use the live data below — do not make up platform-specific details.
-For everything else, use your general knowledge freely.
-
-{cluster_context}"""
+        return json.dumps({"error": str(e)})
 
 
 class ChatMessage(BaseModel):
@@ -94,20 +161,62 @@ def health():
 
 @app.post("/chat")
 def chat(req: ChatRequest):
-    messages = [{"role": "system", "content": build_system_prompt()}]
-    messages += [{"role": m.role, "content": m.content} for m in req.messages]
-    response = client.chat.completions.create(
-        model="gpt-4o-mini",
-        max_tokens=req.max_tokens,
-        messages=messages,
-    )
+    msgs = [{"role": "system", "content": SYSTEM_PROMPT}]
+    msgs += [{"role": m.role, "content": m.content} for m in req.messages]
+
+    tools_used = []
+    total_input = 0
+    total_output = 0
+
+    # Tool-calling loop (max 5 rounds)
+    for _ in range(5):
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            max_tokens=req.max_tokens,
+            messages=msgs,
+            tools=MCP_TOOLS,
+            tool_choice="auto",
+        )
+        total_input  += response.usage.prompt_tokens
+        total_output += response.usage.completion_tokens
+
+        msg = response.choices[0].message
+
+        # No tool calls — final answer
+        if not msg.tool_calls:
+            return {
+                "response":   msg.content,
+                "session_id": req.session_id,
+                "tools_used": tools_used,
+                "usage": {
+                    "input_tokens":  total_input,
+                    "output_tokens": total_output,
+                }
+            }
+
+        # Execute tool calls
+        msgs.append(msg)
+        for tc in msg.tool_calls:
+            args = {}
+            try:
+                args = json.loads(tc.function.arguments)
+            except Exception:
+                pass
+
+            result = call_tool(tc.function.name, args)
+            tools_used.append({"tool": tc.function.name, "args": args})
+
+            msgs.append({
+                "role":         "tool",
+                "tool_call_id": tc.id,
+                "content":      result,
+            })
+
     return {
-        "response": response.choices[0].message.content,
+        "response":   "Reached maximum tool-call rounds without a final answer.",
         "session_id": req.session_id,
-        "usage": {
-            "input_tokens":  response.usage.prompt_tokens,
-            "output_tokens": response.usage.completion_tokens,
-        }
+        "tools_used": tools_used,
+        "usage":      {"input_tokens": total_input, "output_tokens": total_output},
     }
 
 
