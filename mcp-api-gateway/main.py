@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Request, HTTPException, Depends
+from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import httpx
@@ -28,28 +28,6 @@ SERVICES = {
     "control-plane":  os.getenv("MCP_CONTROL_PLANE_URL",      "http://mcp-control-plane:8008"),
 }
 
-# Routes that do NOT require a JWT token
-PUBLIC_ROUTES = {
-    ("auth", "login"),
-    ("auth", "register"),
-    ("auth", "health"),
-    ("auth", "refresh"),
-}
-
-
-async def verify_token(request: Request):
-    token = request.headers.get("Authorization")
-    if not token:
-        raise HTTPException(status_code=401, detail="Missing Authorization header")
-    async with httpx.AsyncClient(timeout=10.0) as client:
-        resp = await client.post(
-            f"{SERVICES['auth']}/verify-header",
-            params={"authorization": token}
-        )
-        if resp.status_code != 200:
-            raise HTTPException(status_code=401, detail="Invalid token")
-    return token
-
 
 @app.get("/health")
 async def health():
@@ -60,19 +38,6 @@ async def health():
 async def proxy(service: str, path: str, request: Request):
     if service not in SERVICES:
         raise HTTPException(status_code=404, detail=f"Service '{service}' not found")
-
-    # Skip auth for public routes
-    if (service, path) not in PUBLIC_ROUTES:
-        token = request.headers.get("Authorization")
-        if not token:
-            raise HTTPException(status_code=401, detail="Missing Authorization header")
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.post(
-                f"{SERVICES['auth']}/verify-header",
-                params={"authorization": token}
-            )
-            if resp.status_code != 200:
-                raise HTTPException(status_code=401, detail="Invalid token")
 
     url = f"{SERVICES[service]}/{path}"
     body = await request.body()

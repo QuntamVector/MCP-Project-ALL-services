@@ -17,7 +17,7 @@ export default function Login() {
     setLoading(true)
     try {
       const res = await authAPI.login(username, password)
-      login({ username, role: res.data.role || 'user' }, res.data.access_token)
+      login({ username, role: res.data.role || 'user' })
       navigate('/dashboard')
     } catch (err) {
       const msg = err?.response?.data?.detail || 'Invalid credentials'

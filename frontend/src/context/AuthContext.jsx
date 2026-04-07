@@ -8,14 +8,12 @@ export function AuthProvider({ children }) {
     return u ? JSON.parse(u) : null
   })
 
-  const login = (userData, token) => {
-    localStorage.setItem('token', token)
+  const login = (userData) => {
     localStorage.setItem('user', JSON.stringify(userData))
     setUser(userData)
   }
 
   const logout = () => {
-    localStorage.removeItem('token')
     localStorage.removeItem('user')
     setUser(null)
   }
