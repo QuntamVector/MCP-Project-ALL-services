@@ -24,17 +24,20 @@ const STATUS_COLOR = {
 }
 
 export default function Dashboard() {
-  const [cluster,    setCluster]    = useState(null)
-  const [products,   setProducts]   = useState(null)
-  const [users,      setUsers]      = useState(null)
-  const [svcStatus,  setSvcStatus]  = useState({})
-  const [loading,    setLoading]    = useState(true)
-  const [lastUpdate, setLastUpdate] = useState(null)
-  const [refreshing, setRefreshing] = useState(false)
+  const [cluster,      setCluster]      = useState(null)
+  const [products,     setProducts]     = useState(null)
+  const [users,        setUsers]        = useState(null)
+  const [svcStatus,    setSvcStatus]    = useState({})
+  const [loading,      setLoading]      = useState(true)
+  const [lastUpdate,   setLastUpdate]   = useState(null)
+  const [refreshing,   setRefreshing]   = useState(false)
+  const [namespaces,   setNamespaces]   = useState([])
+  const [namespace,    setNamespace]    = useState('')
+  const [nsLoading,    setNsLoading]    = useState(false)
 
-  const fetchCluster = useCallback(async () => {
+  const fetchCluster = useCallback(async (ns) => {
     try {
-      const res = await controlPlaneAPI.status()
+      const res = await controlPlaneAPI.status(ns || undefined)
       setCluster(res.data)
     } catch { setCluster(null) }
   }, [])
@@ -49,22 +52,46 @@ export default function Dashboard() {
     setSvcStatus(results)
   }, [])
 
-  const fetchAll = useCallback(async (isRefresh = false) => {
+  const fetchNamespaces = useCallback(async () => {
+    try {
+      const res = await controlPlaneAPI.namespaces()
+      const list = res.data?.namespaces || []
+      setNamespaces(list)
+      // set default to the cluster's default namespace once loaded
+      if (!namespace && res.data?.default) setNamespace(res.data.default)
+    } catch {}
+  }, [namespace])
+
+  const fetchAll = useCallback(async (isRefresh = false, ns) => {
     if (isRefresh) setRefreshing(true)
     const [p, u] = await Promise.allSettled([productAPI.list(), userAPI.list()])
     if (p.status === 'fulfilled') setProducts(p.value.data)
     if (u.status === 'fulfilled') setUsers(u.value.data)
-    await Promise.all([fetchCluster(), fetchHealth()])
+    await Promise.all([fetchCluster(ns ?? namespace), fetchHealth()])
     setLoading(false)
     setRefreshing(false)
     setLastUpdate(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }))
-  }, [fetchCluster, fetchHealth])
+  }, [fetchCluster, fetchHealth, namespace])
 
+  // Initial load
   useEffect(() => {
+    fetchNamespaces()
     fetchAll()
     const t = setInterval(() => fetchAll(true), 30000)
     return () => clearInterval(t)
-  }, [fetchAll])
+  }, []) // eslint-disable-line
+
+  // Re-fetch cluster when namespace changes
+  const handleNamespaceChange = async (ns) => {
+    setNamespace(ns)
+    setNsLoading(true)
+    try {
+      const res = await controlPlaneAPI.status(ns || undefined)
+      setCluster(res.data)
+    } catch { setCluster(null) }
+    setNsLoading(false)
+    setLastUpdate(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }))
+  }
 
   const pods       = cluster?.pods?.items?.filter(p => !p.error) ?? []
   const nodes      = cluster?.nodes?.items?.filter(n => !n.error) ?? []
@@ -102,6 +129,41 @@ export default function Dashboard() {
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+
+          {/* Namespace selector */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600 }}>NAMESPACE</span>
+            <div style={{ position: 'relative' }}>
+              <select
+                value={namespace}
+                onChange={e => handleNamespaceChange(e.target.value)}
+                disabled={nsLoading || namespaces.length === 0}
+                style={{
+                  background: 'var(--card)', border: '1px solid var(--border)',
+                  color: 'var(--text)', borderRadius: 8, padding: '6px 32px 6px 12px',
+                  fontSize: 12, cursor: 'pointer', outline: 'none',
+                  appearance: 'none', fontWeight: 600, minWidth: 160,
+                  opacity: nsLoading ? 0.6 : 1,
+                }}
+              >
+                {namespaces.length === 0
+                  ? <option value="">Loading…</option>
+                  : namespaces.map(ns => (
+                    <option key={ns} value={ns}>{ns}</option>
+                  ))
+                }
+              </select>
+              <span style={{
+                position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
+                fontSize: 10, color: 'var(--muted)', pointerEvents: 'none',
+                animation: nsLoading ? 'spin 1s linear infinite' : 'none',
+                display: 'inline-block',
+              }}>
+                {nsLoading ? '⟳' : '▾'}
+              </span>
+            </div>
+          </div>
+
           {lastUpdate && (
             <span style={{ fontSize: 11, color: 'var(--muted)' }}>Updated {lastUpdate}</span>
           )}
@@ -251,7 +313,7 @@ export default function Dashboard() {
             ['Status',     cluster.cluster.status,  cluster.cluster.status === 'ACTIVE' ? 'var(--green)' : 'var(--yellow)'],
             ['Region',     cluster.cluster.region],
             ['K8s',        cluster.cluster.version],
-            ['Namespace',  cluster.namespace],
+            ['Namespace',  namespace || cluster.namespace],
             ['Reg. Models',String(cluster.registered_models ?? 0)],
             ['CPU',        `${cpuUsed}m`],
             ['Memory',     `${memUsed} MB`],
